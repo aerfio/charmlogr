@@ -6,11 +6,11 @@ import (
 )
 
 type charmLogger struct {
-	l                  log.Logger
+	l                  *log.Logger
 	verbosityFieldName string
 	errorFieldName     string
 	nameSeparator      string
-	loggerName         string
+	//loggerName         string
 }
 
 // Underlier exposes access to the underlying logging implementation.  Since
@@ -18,15 +18,27 @@ type charmLogger struct {
 // in use, so this interface is less of an abstraction and more of way to test
 // type conversion.
 type Underlier interface {
-	GetUnderlying() log.Logger
+	GetUnderlying() *log.Logger
 }
 
 var (
-	_ logr.LogSink = &charmLogger{}
-	_ Underlier    = &charmLogger{}
+	_ logr.LogSink                = &charmLogger{}
+	_ Underlier                   = &charmLogger{}
+	_ logr.CallStackHelperLogSink = &charmLogger{}
+	_ logr.CallDepthLogSink       = &charmLogger{}
 )
 
-func (cl *charmLogger) GetUnderlying() log.Logger {
+func (cl *charmLogger) copy() *charmLogger {
+	return &charmLogger{
+		l:                  cl.l.With(),
+		verbosityFieldName: cl.verbosityFieldName,
+		errorFieldName:     cl.errorFieldName,
+		nameSeparator:      cl.nameSeparator,
+		//loggerName:         cl.loggerName,
+	}
+}
+
+func (cl *charmLogger) GetUnderlying() *log.Logger {
 	return cl.l
 }
 
@@ -37,6 +49,7 @@ func (cl *charmLogger) Enabled(level int) bool {
 }
 
 func (cl *charmLogger) Info(level int, msg string, keysAndValues ...interface{}) {
+	cl.l.Helper()
 	if cl.verbosityFieldName != "" {
 		keysAndValues = append([]any{cl.verbosityFieldName, level}, keysAndValues...)
 	}
@@ -50,6 +63,8 @@ func (cl *charmLogger) Info(level int, msg string, keysAndValues ...interface{})
 }
 
 func (cl *charmLogger) Error(err error, msg string, keysAndValues ...interface{}) {
+	cl.l.Helper()
+
 	if err != nil {
 		keysAndValues = append([]any{cl.errorFieldName, err.Error()}, keysAndValues...)
 	}
@@ -57,58 +72,62 @@ func (cl *charmLogger) Error(err error, msg string, keysAndValues ...interface{}
 }
 
 func (cl *charmLogger) WithValues(keysAndValues ...interface{}) logr.LogSink {
-	return &charmLogger{l: cl.l.With(keysAndValues...)}
+	cl.l.Helper()
+	copied := cl.copy()
+	copied.l = copied.l.With(keysAndValues...)
+	return copied
 }
 
 func (cl *charmLogger) WithName(name string) logr.LogSink {
+	cl.l.Helper()
 	newLogger := *cl
-	newLogger.l = newLogger.l.With() // copies logger
-	if newLogger.loggerName != "" {
-		newLogger.loggerName += cl.nameSeparator
+	oldName := cl.l.GetPrefix()
+	if oldName != "" {
+		oldName += cl.nameSeparator
 	}
-	newLogger.loggerName += name
-	newLogger.l.SetPrefix(newLogger.loggerName)
+	oldName += name
+	newLogger.l = cl.l.WithPrefix(oldName)
 	return &newLogger
 }
 
-// option is additional parameter for NewLoggerWithOptions.
-type option func(*charmLogger)
+// Option is additional parameter for NewLoggerWithOptions.
+type Option func(*charmLogger)
 
 // WithVerbosityFieldName updates the field key for logr.Info verbosity, which by default is set to "v". If set to "",
 // the verbosity key is added to log line
-func WithVerbosityFieldName(name string) option {
+func WithVerbosityFieldName(name string) Option {
 	return func(logger *charmLogger) {
 		logger.verbosityFieldName = name
 	}
 }
 
 // WithErrorFieldName changes the default field name from "err"
-func WithErrorFieldName(name string) option {
+func WithErrorFieldName(name string) Option {
 	return func(logger *charmLogger) {
 		logger.errorFieldName = name
 	}
 }
 
 // WithNameSeparator changes the default separator of name parts. Default value is "/"
-func WithNameSeparator(separator string) option {
+func WithNameSeparator(separator string) Option {
 	return func(logger *charmLogger) {
 		logger.nameSeparator = separator
 	}
 }
 
-func NewLoggerWitOptions(l log.Logger, options ...option) logr.Logger {
+func NewLoggerWithOptions(l *log.Logger, options ...Option) logr.Logger {
 	return logr.New(NewLogSinkWitOptions(l, options...))
 }
 
-func NewLogger(l log.Logger) logr.Logger {
-	return NewLoggerWitOptions(l)
+func NewLogger(l *log.Logger) logr.Logger {
+	return NewLoggerWithOptions(l)
 }
 
-func NewLogSink(l log.Logger) logr.LogSink {
+func NewLogSink(l *log.Logger) logr.LogSink {
 	return NewLogSinkWitOptions(l)
 }
 
-func NewLogSinkWitOptions(l log.Logger, options ...option) logr.LogSink {
+func NewLogSinkWitOptions(l *log.Logger, options ...Option) logr.LogSink {
 	logger := &charmLogger{
 		l:                  l,
 		verbosityFieldName: "v",
@@ -119,4 +138,14 @@ func NewLogSinkWitOptions(l log.Logger, options ...option) logr.LogSink {
 		opt(logger)
 	}
 	return logger
+}
+
+func (cl *charmLogger) GetCallStackHelper() func() {
+	return cl.l.Helper
+}
+
+func (cl *charmLogger) WithCallDepth(depth int) logr.LogSink {
+	copied := cl.copy()
+	copied.l.SetCallerOffset(depth)
+	return copied
 }
