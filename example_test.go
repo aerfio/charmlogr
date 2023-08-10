@@ -40,7 +40,7 @@ func ExampleNewLoggerWithOptions() {
 	// ERRO log line with error error=whoops
 }
 
-func ExampleNewLoggerWithOptions_logfmt_formatter() {
+func ExampleNewLoggerWithOptions_LogFmtFormatter() {
 	l := charmlogr.NewLoggerWithOptions(
 		log.NewWithOptions(os.Stdout, log.Options{
 			Formatter: log.LogfmtFormatter,
@@ -53,7 +53,7 @@ func ExampleNewLoggerWithOptions_logfmt_formatter() {
 	// lvl=error msg="log line with error" err=whoops
 }
 
-func ExampleNewLoggerWithOptions_json_formatter() {
+func ExampleNewLoggerWithOptions_JSONFormatter() {
 	l := charmlogr.NewLoggerWithOptions(
 		log.NewWithOptions(os.Stdout, log.Options{Formatter: log.JSONFormatter}),
 	)
@@ -64,7 +64,7 @@ func ExampleNewLoggerWithOptions_json_formatter() {
 	// {"err":"whoops","lvl":"error","msg":"log line with error"}
 }
 
-func ExampleNewLoggerWithOptions_more_options() {
+func ExampleNewLoggerWithOptions_MoreOptions() {
 	l := charmlogr.NewLoggerWithOptions(
 		log.NewWithOptions(os.Stdout, log.Options{
 			TimeFunction: func() time.Time {

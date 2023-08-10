@@ -94,7 +94,7 @@ func (cl *charmLogger) WithName(name string) logr.LogSink {
 type Option func(*charmLogger)
 
 // WithVerbosityFieldName updates the field key for logr.Info verbosity, which by default is set to "v". If set to "",
-// the verbosity key is added to log line
+// the verbosity key is not added to log line
 func WithVerbosityFieldName(name string) Option {
 	return func(logger *charmLogger) {
 		logger.verbosityFieldName = name
